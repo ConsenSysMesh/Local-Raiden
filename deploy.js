@@ -1,5 +1,5 @@
 // Path to Raiden smart contract source files
-const RAIDEN_DIR = "../raiden/raiden/smart_contracts/";
+const RAIDEN_DIR = "raiden/raiden/smart_contracts/";
 const TOKEN_DIR = ".";
 
 // The filename to which we will output environment variables
@@ -13,11 +13,11 @@ const Web3 = require('web3');
 const fs = require('fs');
 
 // Connect to node
-// docker run --network="host" -u $UID -v `pwd`:/shared ethereum/client-go --datadir /shared --nodiscover --dev --rpc
 const web3 = new Web3('http://localhost:8545');
 
 // Pre-created accounts.
-// Keystore files for these are in ./keystore. No passwords.
+// Keystore files for these are in ./keystore. Passwords are "password".
+// (We use a password since Raiden cannot cope with password-less accounts.)
 const ACCT1 = "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A";
 const ACCT2 = "0x1563915e194D8CfBA1943570603F7606A3115508";
 const ACCT3 = "0x5CbDd86a2FA8Dc4bDdd8a8f69dBa48572EeC07FB";
@@ -62,7 +62,7 @@ async function main()
 
     // Some of the compilation requires the addresses of library contracts.
     var libs = [];
-    
+
     // Deploy Discovery contract
     var discovery
         = await deploy_code(
@@ -70,7 +70,7 @@ async function main()
             compile(RAIDEN_DIR, 'EndpointRegistry', libs)
         );
     debug(2, 'Discovery contract: ' + discovery);
-    
+
     // Deploy NettingChannelLibrary contract
     var nettingChannelLibrary
         = await deploy_code(
@@ -150,14 +150,13 @@ async function main()
     contents += `export RDN_TOKEN=${token}\n`;
     // For convenience within the docker-compose file:
     contents += `export UID\n`;
-    
+
     await fs.writeFile(ENVFILE, contents, function(err) {
         if(err) {
             return console.log(err);
         }
         console.log("Environment variables written to " + ENVFILE);
     });
-
 }
 
 // =====================================================================
@@ -169,7 +168,7 @@ async function get_account()
 {
     var accounts = await web3.eth.getAccounts();
     var account;
-     
+
     if (accounts.length > 0) {
         account = accounts[0];
         debug(1, 'account: ' + account + ', balance: ' + await get_balance(account));
@@ -191,11 +190,11 @@ async function deploy_code(account, binary)
 {
     debug(3, binary);
 
-    txReceipt = await web3.eth.sendTransaction({from:account, data:'0x' + binary, gas:5000000});
+    txReceipt = await web3.eth.sendTransaction({from:account, data:'0x' + binary, gas:3000000});
     debug(2, JSON.stringify(txReceipt));
 
     // TODO: error handling
-    
+
     return txReceipt.contractAddress;
 }
 
@@ -206,8 +205,7 @@ async function transfer_ether(from, to, amount)
     debug(1, 'transfer_ether to: '     + to);
     debug(1, 'transfer_ether amount: ' + web3.utils.fromWei(amount) + ' Eth');
 
-    return web3.eth.sendTransaction({from:from, to:to, gas:"0x5208", value:amount});
-
+    return web3.eth.sendTransaction({from:from, to:to, gas:21000, value:amount});
 }
 
 // Compile `name`.sol after cd to `dir`, using the library contracts in `libs`.

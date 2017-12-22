@@ -21,7 +21,7 @@ RUN git clone https://github.com/raiden-network/raiden.git && \
     pip install --upgrade -r requirements.txt && \
     python setup.py develop
 
-# Build the client Web UI - seems to be non-funtional
+# Build the client Web UI - seems to be non-functional at the moment.
 #RUN apt-get install -y --no-install-recommends \
 #            curl && \
 #    curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
