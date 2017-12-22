@@ -1,2 +1,5 @@
 geth/
 node_modules/
+raiden_data/
+geth.ipc
+env.sh

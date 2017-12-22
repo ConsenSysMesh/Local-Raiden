@@ -1,0 +1,79 @@
+version: '3'
+
+services:
+
+  geth:
+    image: ethereum/client-go
+    volumes:
+      - '.:/shared'
+    networks:
+      raiden_net:
+        ipv4_address: '172.13.0.2'
+    ports:
+      - 8545:8545
+    user: ${UID}
+    command:
+      --datadir /shared
+      --nodiscover
+      --dev
+      --dev.period 3
+      --rpc
+      --rpcaddr 0.0.0.0
+
+  raiden_1:
+    image: my/raiden
+    depends_on:
+      - geth
+    volumes:
+      - '.:/shared'
+    networks:
+      raiden_net:
+        ipv4_address: '172.13.0.3'
+    ports:
+      - 5001:5001
+    user: ${UID}
+    command:
+      --datadir /shared/raiden_data
+      --keystore-path /shared/keystore
+      --password-file /shared/password.txt
+      --no-sync-check
+      --nat none
+      --listen-address 0.0.0.0:40001
+      --api-address 0.0.0.0:5001
+      --eth-rpc-endpoint http://172.13.0.2:8545
+      --registry-contract-address ${RDN_REGISTRY}
+      --discovery-contract-address ${RDN_DISCOVERY}
+      --address ${RDN_ACCT1}
+
+  raiden_2:
+    image: my/raiden
+    depends_on:
+      - geth
+    volumes:
+      - '.:/shared'
+    networks:
+      raiden_net:
+        ipv4_address: '172.13.0.4'
+    ports:
+      - 5002:5001
+    user: ${UID}
+    command:
+      --datadir /shared/raiden_data
+      --keystore-path /shared/keystore
+      --password-file /shared/password.txt
+      --no-sync-check
+      --nat none
+      --listen-address 0.0.0.0:40001
+      --api-address 0.0.0.0:5001
+      --eth-rpc-endpoint http://172.13.0.2:8545
+      --registry-contract-address ${RDN_REGISTRY}
+      --discovery-contract-address ${RDN_DISCOVERY}
+      --address ${RDN_ACCT2}
+
+networks:
+  raiden_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.13.0.0/16
