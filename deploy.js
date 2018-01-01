@@ -1,16 +1,36 @@
-// Path to Raiden smart contract source files
-const RAIDEN_DIR = "raiden/raiden/smart_contracts/";
-const TOKEN_DIR = ".";
+"use strict";
 
-// The filename to which we will output environment variables
-const ENVFILE = "env.sh";
-
+// =============================================================================
 // Requires
+
 // web3 must be v1.0.0 or later
+const path = require('path');
 const util = require('util');
 const execSync = require('child_process').execSync;
 const Web3 = require('web3');
 const fs = require('fs');
+
+// =============================================================================
+// Paths and files
+
+// Path to Raiden smart contract source files
+const RAIDEN_DIR = 'raiden/raiden/smart_contracts/';
+
+// Path to Token contract source file
+const TOKEN_DIR = '.';
+
+// Path to Solidity compiler
+const SOLC = '/usr/local/bin/solc';
+
+// Path to directory to which to write the ABI files
+const ABI_DIR = './abis/';
+if (!fs.existsSync(ABI_DIR)){fs.mkdirSync(ABI_DIR);}
+
+// The filename to which we will output environment variables
+const ENVFILE = "env.sh";
+
+// =============================================================================
+// Set up Web3 environment
 
 // Connect to node
 const web3 = new Web3('http://localhost:8545');
@@ -23,14 +43,12 @@ const ACCT2 = "0x1563915e194D8CfBA1943570603F7606A3115508";
 const ACCT3 = "0x5CbDd86a2FA8Dc4bDdd8a8f69dBa48572EeC07FB";
 const ACCT4 = "0x7564105E977516C53bE337314c7E53838967bDaC";
 
-// Set everything up for running the Token contract
-const ERC20_ABI_FILE = 'erc20_abi.json';
-const ERC20_ABI = fs.readFileSync(ERC20_ABI_FILE,'utf8');
-const ERC20 = new web3.eth.Contract(JSON.parse(ERC20_ABI));
+// =============================================================================
+// Run the thing
 
 main();
 
-// =====================================================================
+// =============================================================================
 // Main Function
 
 // Just a wrapper to simplify all the async/await stuff
@@ -97,16 +115,25 @@ async function main()
         );
     debug(2, 'Registry contract: ' + registry);
 
+    // -----------------------------------------------------------------
+    // Write ABIs for other Raiden contracts (we compile, but don't deploy)
+    compile(RAIDEN_DIR, 'ChannelManagerContract', libs);
+    compile(RAIDEN_DIR, 'NettingChannelContract', libs);
 
     // -----------------------------------------------------------------
     // Deploy Token contract
 
-    var token
-        = await deploy_code(
-            account,
-            compile(TOKEN_DIR, 'Token', [])
-        );
+    const token
+          = await deploy_code(
+              account,
+              compile(TOKEN_DIR, 'Token', [])
+          );
     debug(2, 'Token contract: ' + token);
+
+    // Set everything up for running the Token contract
+    const ERC20_ABI_FILE = path.join(ABI_DIR, 'Token.json');
+    const ERC20_ABI = fs.readFileSync(ERC20_ABI_FILE,'utf8');
+    const ERC20 = new web3.eth.Contract(JSON.parse(ERC20_ABI));
 
     // Split our Tokens equally between the pre-configured accounts
     ERC20.options.address = token;
@@ -121,7 +148,6 @@ async function main()
     ])
         .then(ret => {debug(1, 'Token transfers succeeded.'); debug(2, JSON.stringify(ret))})
         .catch(err => {console.log('Error: token transfers failed.'); console.log(err)});
-
 
     // -----------------------------------------------------------------
     // Summarise what we've done.
@@ -159,9 +185,10 @@ async function main()
     });
 }
 
-// =====================================================================
+// =============================================================================
 // Helper Functions
 
+// -----------------------------------------------------------------------------
 // There should be one account pre-funded and unlocked by geth --dev
 // This function finds it and returns the address.
 async function get_account()
@@ -179,18 +206,20 @@ async function get_account()
     return account;
 }
 
+// -----------------------------------------------------------------------------
 // Return the Ether balance of an account.
 async function get_balance(account)
 {
     return web3.eth.getBalance(account);
 }
 
+// -----------------------------------------------------------------------------
 // Deploy the contract in `binary` from the account `account`.
 async function deploy_code(account, binary)
 {
     debug(3, binary);
 
-    txReceipt = await web3.eth.sendTransaction({from:account, data:'0x' + binary, gas:3000000});
+    var txReceipt = await web3.eth.sendTransaction({from:account, data:'0x' + binary, gas:3000000});
     debug(2, JSON.stringify(txReceipt));
 
     // TODO: error handling
@@ -198,6 +227,7 @@ async function deploy_code(account, binary)
     return txReceipt.contractAddress;
 }
 
+// -----------------------------------------------------------------------------
 // Transfer Ether between accounts (`amount` is in Wei).
 async function transfer_ether(from, to, amount)
 {
@@ -208,7 +238,9 @@ async function transfer_ether(from, to, amount)
     return web3.eth.sendTransaction({from:from, to:to, gas:21000, value:amount});
 }
 
+// -----------------------------------------------------------------------------
 // Compile `name`.sol after cd to `dir`, using the library contracts in `libs`.
+// Also writes ABI as a side-effect
 // This is synchronous, not async.
 function compile(dir, name, libs)
 {
@@ -219,12 +251,25 @@ function compile(dir, name, libs)
     }
     if (libstring.length !== 0) libstring = "--libraries '" + libstring + "' ";
     debug(2, 'libstring: ' + libstring);
-    const stdout = execSync('cd ' + dir + '; /usr/local/bin/solc --combined-json bin ' + libstring + name + '.sol');
+    const stdout = execSync('cd ' + dir + '; ' + SOLC + ' --combined-json bin,abi ' + libstring + name + '.sol');
     debug(3, name + ' compilation output: ' + stdout);
+
+    // Write out ABI for later use
+    fs.writeFile(
+        path.join(ABI_DIR, name + '.json'),
+        (JSON.parse(stdout.toString())).contracts[name + '.sol:' + name].abi,
+        function(err) {
+            if(err) {
+                return console.log(err);
+            }
+            debug(1, 'ABI for ' + name + '.sol' + ' written to ' + path.join(ABI_DIR, name + '.json'))
+        }
+    );
+
     return (JSON.parse(stdout.toString())).contracts[name + '.sol:' + name].bin;
 }
 
-// =====================================================================
+// =============================================================================
 // Debugging
 
 // e.g. DEBUG=2 node deploy.js
