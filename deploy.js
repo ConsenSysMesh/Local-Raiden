@@ -200,6 +200,9 @@ async function main()
     contents += `RDN_DISCOVERY=${discovery}\n`;
     contents += `RDN_REGISTRY=${registry}\n`;
     contents += `RDN_TOKEN=${token}\n`;
+    // Save the userid for later use by docker-compose. Yes - this is a hack.
+    // It helps when sharing volumes between container and host on Linux.
+    contents += 'RDN_USER=' + require('os').userInfo().uid + "\n";
 
     await fs.writeFile(ENV_FILE, contents, function(err) {
         if(err) {
