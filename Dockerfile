@@ -15,9 +15,11 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 923F6CA9 && \
             python-pip && \
     rm -rf /var/lib/apt/lists/*
 
+# We use the local Git submodule for the Raiden build.
+COPY raiden/ raiden/
+
 # Build Raiden client
-RUN git clone https://github.com/raiden-network/raiden.git && \
-    cd raiden && \
+RUN cd raiden && \
     pip install --upgrade -r requirements.txt && \
     python setup.py develop
 
