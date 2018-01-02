@@ -1,3 +1,25 @@
+/**
+ * @file Deploy Raiden contracts to the network and set up some accounts.
+ * @author Ben Edgington
+ */
+
+/*
+To set up a fresh network from scratch:
+
+First remove any old configuration:
+> rm -rf geth raiden_data geth.ipc
+
+Start geth (with the test config). Ignore any warnings about environment variables.
+> docker-compose run -u $UID --service-ports geth
+
+Run this script:
+> DEBUG=1 node deploy.js
+
+The account info will be output to the console. In addition, a file ".env"
+will be created that contain environment variables for docker-compose.
+Also, ABI files for the Raiden contracts will be saved.
+*/
+
 "use strict";
 
 // =============================================================================
@@ -16,18 +38,25 @@ const fs = require('fs');
 // Path to Raiden smart contract source files
 const RAIDEN_DIR = 'raiden/raiden/smart_contracts/';
 
-// Path to Token contract source file
+// Path to Token contract source file (must be named Token.sol)
 const TOKEN_DIR = '.';
 
 // Path to Solidity compiler
 const SOLC = '/usr/local/bin/solc';
 
-// Path to directory to which to write the ABI files
+// Path to directory in which to write the ABI files
 const ABI_DIR = './abis/';
 if (!fs.existsSync(ABI_DIR)){fs.mkdirSync(ABI_DIR);}
 
 // The filename to which we will output environment variables
-const ENVFILE = "env.sh";
+const ENV_FILE = ".env";
+
+// Fetch the debug level from the environment. Default to zero.
+// 0: Silent except for summary info.
+// 1: Progress in main routine only.
+// 2: Informational.
+// 3: Full dump of Txs and data.
+const debugLevel = process.env.DEBUG == undefined ? 0 : parseInt(process.env.DEBUG);
 
 // =============================================================================
 // Set up Web3 environment
@@ -56,14 +85,15 @@ async function main()
 {
 
     // -----------------------------------------------------------------
-    // Get local account info
+    // Initial set-up
 
     // One account is pre-configured and pre-funded by geth --dev
+    debug(1, '*** Fetching initial account information.');
     var account;
     account = await get_account();
-    debug(1, 'Acct: ' + account);
 
     // Transfer some of our Eth stash to fund the pre-configured accounts
+    debug(1, '*** Transferring Ether to pre-defined accounts.');
     var wei = web3.utils.toWei('1000', 'Ether');
     await Promise.all([
         transfer_ether(account, ACCT1, wei),
@@ -71,9 +101,8 @@ async function main()
         transfer_ether(account, ACCT3, wei),
         transfer_ether(account, ACCT4, wei)
     ])
-        .then(ret => {debug(1, 'Value transfers succeeded.'); debug(2, JSON.stringify(ret))})
+        .then(ret => {debug(2, 'Value transfers succeeded.'); debug(3, JSON.stringify(ret))})
         .catch(err => {console.log('Error: value transfers failed.'); console.log(err)});
-
 
     // -----------------------------------------------------------------
     // Deploy Raiden contracts
@@ -82,7 +111,8 @@ async function main()
     var libs = [];
 
     // Deploy Discovery contract
-    var discovery
+    debug(1, '*** Deploying Discovery contract.');
+    const discovery
         = await deploy_code(
             account,
             compile(RAIDEN_DIR, 'EndpointRegistry', libs)
@@ -90,7 +120,8 @@ async function main()
     debug(2, 'Discovery contract: ' + discovery);
 
     // Deploy NettingChannelLibrary contract
-    var nettingChannelLibrary
+    debug(1, '*** Deploying NettingChannelLibrary contract.');
+    const nettingChannelLibrary
         = await deploy_code(
             account,
             compile(RAIDEN_DIR, 'NettingChannelLibrary', libs)
@@ -99,7 +130,8 @@ async function main()
     debug(2, 'libs: ' + libs);
 
     // Deploy ChannelManagerLibrary contract
-    var channelManagerLibrary
+    debug(1, '*** Deploying ChannelManagerLibrary contract.');
+    const channelManagerLibrary
         = await deploy_code(
             account,
             compile(RAIDEN_DIR, 'ChannelManagerLibrary', libs)
@@ -108,7 +140,8 @@ async function main()
     debug(2, 'libs: ' + libs);
 
     // Deploy Registry contract
-    var registry
+    debug(1, '*** Deploying Registry contract.');
+    const registry
         = await deploy_code(
             account,
             compile(RAIDEN_DIR, 'Registry', libs)
@@ -117,12 +150,16 @@ async function main()
 
     // -----------------------------------------------------------------
     // Write ABIs for other Raiden contracts (we compile, but don't deploy)
+
+    debug(1, '*** Compiling ChannelManagerContract contract.');
     compile(RAIDEN_DIR, 'ChannelManagerContract', libs);
+    debug(1, '*** Compiling NettingChannelContract contract.');
     compile(RAIDEN_DIR, 'NettingChannelContract', libs);
 
     // -----------------------------------------------------------------
     // Deploy Token contract
 
+    debug(1, '*** Deploying Token contract.');
     const token
           = await deploy_code(
               account,
@@ -136,22 +173,45 @@ async function main()
     const ERC20 = new web3.eth.Contract(JSON.parse(ERC20_ABI));
 
     // Split our Tokens equally between the pre-configured accounts
+    debug(1, '*** Sharing tokens between pre-defined accounts.');
     ERC20.options.address = token;
     ERC20.options.from = account;
-    var totalSupply = await ERC20.methods.totalSupply().call();
-    debug(1, 'totalSupply: ' + totalSupply);
+    const totalSupply = await ERC20.methods.totalSupply().call();
+    debug(2, 'totalSupply: ' + totalSupply);
     await Promise.all([
         ERC20.methods.transfer(ACCT1, Math.floor(totalSupply/4)).send(),
         ERC20.methods.transfer(ACCT2, Math.floor(totalSupply/4)).send(),
         ERC20.methods.transfer(ACCT3, Math.floor(totalSupply/4)).send(),
         ERC20.methods.transfer(ACCT4, Math.floor(totalSupply/4)).send()
     ])
-        .then(ret => {debug(1, 'Token transfers succeeded.'); debug(2, JSON.stringify(ret))})
+        .then(ret => {debug(2, 'Token transfers succeeded.'); debug(3, JSON.stringify(ret))})
         .catch(err => {console.log('Error: token transfers failed.'); console.log(err)});
+
+    // -----------------------------------------------------------------
+    // Write useful quantities to environment variables file
+
+    debug(1, '*** Writing environment variables file.');
+    var contents = '';
+
+    contents += `RDN_ACCT1=${ACCT1}\n`;
+    contents += `RDN_ACCT2=${ACCT2}\n`;
+    contents += `RDN_ACCT3=${ACCT3}\n`;
+    contents += `RDN_ACCT4=${ACCT4}\n`;
+    contents += `RDN_DISCOVERY=${discovery}\n`;
+    contents += `RDN_REGISTRY=${registry}\n`;
+    contents += `RDN_TOKEN=${token}\n`;
+
+    await fs.writeFile(ENV_FILE, contents, function(err) {
+        if(err) {
+            return console.log(err);
+        }
+        debug(2, "Environment variables written to " + ENV_FILE);
+    });
 
     // -----------------------------------------------------------------
     // Summarise what we've done.
 
+    console.log("\nSummary\n=======\n");
     console.log('Deployment account: ' + account);
     console.log("Account_1: " + ACCT1  + "\n  balance: " + await get_balance(ACCT1) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCT1).call());
     console.log("Account_2: " + ACCT2  + "\n  balance: " + await get_balance(ACCT2) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCT2).call());
@@ -160,37 +220,19 @@ async function main()
     console.log('Discovery contract: ' + discovery);
     console.log('Registry contract:  ' + registry);
     console.log('Token contract:     ' + token);
-    console.log(`Raiden flags: --registry-contract-address ${registry} --discovery-contract-address ${discovery}`);
+    console.log('');
 
-    // -----------------------------------------------------------------
-    // Write useful quantities to environment variables file
-
-    var contents = '';
-
-    contents += `export RDN_ACCT1=${ACCT1}\n`;
-    contents += `export RDN_ACCT2=${ACCT2}\n`;
-    contents += `export RDN_ACCT3=${ACCT3}\n`;
-    contents += `export RDN_ACCT4=${ACCT4}\n`;
-    contents += `export RDN_DISCOVERY=${discovery}\n`;
-    contents += `export RDN_REGISTRY=${registry}\n`;
-    contents += `export RDN_TOKEN=${token}\n`;
-    // For convenience within the docker-compose file:
-    contents += `export UID\n`;
-
-    await fs.writeFile(ENVFILE, contents, function(err) {
-        if(err) {
-            return console.log(err);
-        }
-        console.log("Environment variables written to " + ENVFILE);
-    });
+    debug(1, '*** Finished.');
 }
 
 // =============================================================================
 // Helper Functions
 
-// -----------------------------------------------------------------------------
-// There should be one account pre-funded and unlocked by geth --dev
-// This function finds it and returns the address.
+/**
+ * There should be one account pre-funded and unlocked by geth --dev
+ * This function finds it and returns the address.
+ * @returns {Promise} Resolves to the address of the unlocked and funded account.
+ */
 async function get_account()
 {
     var accounts = await web3.eth.getAccounts();
@@ -198,52 +240,70 @@ async function get_account()
 
     if (accounts.length > 0) {
         account = accounts[0];
-        debug(1, 'account: ' + account + ', balance: ' + await get_balance(account));
+        debug(2, 'account: ' + account + ', balance: ' + await get_balance(account));
     } else {
-        //TODO: Fail
+        throw 'Unable to find the account unlocked by "geth --dev".';
     }
 
     return account;
 }
 
-// -----------------------------------------------------------------------------
-// Return the Ether balance of an account.
+/**
+ * Returns the Ether balance of an account.
+ * @param {string} account - The address of the account.
+ * @returns {Promise} Resolves to the account balance.
+ */
 async function get_balance(account)
 {
     return web3.eth.getBalance(account);
 }
 
-// -----------------------------------------------------------------------------
-// Deploy the contract in `binary` from the account `account`.
+/**
+ * Deploys the contract in `binary` from the account `account`.
+ * @param {string} account - The "from" account for deployment.
+ * @param {string} binary - Hexadecimal code, no lead "0x", of contract to deploy.
+ * @returns {Promise} Resolves to address of the deployed contract.
+ */
 async function deploy_code(account, binary)
 {
     debug(3, binary);
 
     var txReceipt = await web3.eth.sendTransaction({from:account, data:'0x' + binary, gas:3000000});
-    debug(2, JSON.stringify(txReceipt));
+    debug(3, JSON.stringify(txReceipt));
 
     // TODO: error handling
 
     return txReceipt.contractAddress;
 }
 
-// -----------------------------------------------------------------------------
-// Transfer Ether between accounts (`amount` is in Wei).
+/**
+ * Transfers Ether between accounts.
+ * @param {string} from - The sending account.
+ * @param {string} to - The receiving account.
+ * @param {number} amount - Amount of Wei to transfer.
+ * @returns {Promise} Resolves to transaction receipt for the transfer.
+ */
 async function transfer_ether(from, to, amount)
 {
-    debug(1, 'transfer_ether from: '   + from);
-    debug(1, 'transfer_ether to: '     + to);
-    debug(1, 'transfer_ether amount: ' + web3.utils.fromWei(amount) + ' Eth');
+    debug(2, 'transfer_ether from: '   + from);
+    debug(2, 'transfer_ether to: '     + to);
+    debug(2, 'transfer_ether amount: ' + web3.utils.fromWei(amount) + ' Eth');
+
+    // TODO: error handling
 
     return web3.eth.sendTransaction({from:from, to:to, gas:21000, value:amount});
 }
 
-// -----------------------------------------------------------------------------
-// Compile `name`.sol after cd to `dir`, using the library contracts in `libs`.
-// Also writes ABI as a side-effect
-// This is synchronous, not async.
+/**
+ * Compile a Solidity file and save its ABI (NB synchronous).
+ * @param {string} dir - The directory containin the Solidity file.
+ * @param {string} name - The base name of the file (excluding .sol suffix).
+ * @param {string[]} libs - Array of previously compiled library contracts.
+ * @returns {string} Hexadecimal bytecode, suitable for deployment.
+ */
 function compile(dir, name, libs)
 {
+    // Construct the "--libraries" parameter
     var libstring = '';
     for (var i=0; i < libs.length; i++) {
         libstring += libs[i];
@@ -251,6 +311,8 @@ function compile(dir, name, libs)
     }
     if (libstring.length !== 0) libstring = "--libraries '" + libstring + "' ";
     debug(2, 'libstring: ' + libstring);
+
+    // Compile the contract
     const stdout = execSync('cd ' + dir + '; ' + SOLC + ' --combined-json bin,abi ' + libstring + name + '.sol');
     debug(3, name + ' compilation output: ' + stdout);
 
@@ -262,19 +324,17 @@ function compile(dir, name, libs)
             if(err) {
                 return console.log(err);
             }
-            debug(1, 'ABI for ' + name + '.sol' + ' written to ' + path.join(ABI_DIR, name + '.json'))
+            debug(2, 'ABI for ' + name + '.sol' + ' written to ' + path.join(ABI_DIR, name + '.json'))
         }
     );
 
+    // Return the bytecode
     return (JSON.parse(stdout.toString())).contracts[name + '.sol:' + name].bin;
 }
 
 // =============================================================================
 // Debugging
 
-// e.g. DEBUG=2 node deploy.js
-// Default level is 0.
-var debugLevel = process.env.DEBUG == undefined ? 0 : parseInt(process.env.DEBUG);
 function debug(level, message)
 {
     if(level <= debugLevel) {

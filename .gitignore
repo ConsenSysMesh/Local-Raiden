@@ -1,7 +1,8 @@
 geth/
 node_modules/
 raiden_data/
-abis/*
+abis/
+out/
 geth.ipc
-env.sh
+.env
 test.js
