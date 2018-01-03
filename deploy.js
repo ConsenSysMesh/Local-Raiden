@@ -3,7 +3,7 @@
  * @author Ben Edgington
  */
 
-/*
+/* =============================================================================
 To set up a fresh network from scratch:
 
 First remove any old configuration:
@@ -18,7 +18,7 @@ Run this script:
 The account info will be output to the console. In addition, a file ".env"
 will be created that contain environment variables for docker-compose.
 Also, ABI files for the Raiden contracts will be saved.
-*/
+============================================================================= */
 
 "use strict";
 
@@ -64,13 +64,14 @@ const debugLevel = process.env.DEBUG == undefined ? 0 : parseInt(process.env.DEB
 // Connect to node
 const web3 = new Web3('http://localhost:8545');
 
-// Pre-created accounts.
-// Keystore files for these are in ./keystore. Passwords are "password".
-// (We use a password since Raiden cannot cope with password-less accounts.)
-const ACCT1 = "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A";
-const ACCT2 = "0x1563915e194D8CfBA1943570603F7606A3115508";
-const ACCT3 = "0x5CbDd86a2FA8Dc4bDdd8a8f69dBa48572EeC07FB";
-const ACCT4 = "0x7564105E977516C53bE337314c7E53838967bDaC";
+// Pre-created accounts for Raiden nodes.
+// We don't actually need to unlock any of these accounts during the set-up.
+const ACCTS = [
+    "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+    "0x1563915e194D8CfBA1943570603F7606A3115508",
+    "0x5CbDd86a2FA8Dc4bDdd8a8f69dBa48572EeC07FB",
+    "0x7564105E977516C53bE337314c7E53838967bDaC"
+];
 
 // =============================================================================
 // Run the thing
@@ -83,6 +84,7 @@ main();
 // Just a wrapper to simplify all the async/await stuff
 async function main()
 {
+    var p; // Used to store promises.
 
     // -----------------------------------------------------------------
     // Initial set-up
@@ -94,13 +96,12 @@ async function main()
 
     // Transfer some of our Eth stash to fund the pre-configured accounts
     debug(1, '*** Transferring Ether to pre-defined accounts.');
-    var wei = web3.utils.toWei('1000', 'Ether');
-    await Promise.all([
-        transfer_ether(account, ACCT1, wei),
-        transfer_ether(account, ACCT2, wei),
-        transfer_ether(account, ACCT3, wei),
-        transfer_ether(account, ACCT4, wei)
-    ])
+    const wei = web3.utils.toWei('1000', 'Ether');
+    p = [];
+    for (let i = 0; i < ACCTS.length; i++) {
+        p.push(transfer_ether(account, ACCTS[i], wei));
+    }
+    await Promise.all(p)
         .then(ret => {debug(2, 'Value transfers succeeded.'); debug(3, JSON.stringify(ret))})
         .catch(err => {console.log('Error: value transfers failed.'); console.log(err)});
 
@@ -177,13 +178,14 @@ async function main()
     ERC20.options.address = token;
     ERC20.options.from = account;
     const totalSupply = await ERC20.methods.totalSupply().call();
+    const transferAmount = Math.floor(totalSupply/ACCTS.length);
     debug(2, 'totalSupply: ' + totalSupply);
-    await Promise.all([
-        ERC20.methods.transfer(ACCT1, Math.floor(totalSupply/4)).send(),
-        ERC20.methods.transfer(ACCT2, Math.floor(totalSupply/4)).send(),
-        ERC20.methods.transfer(ACCT3, Math.floor(totalSupply/4)).send(),
-        ERC20.methods.transfer(ACCT4, Math.floor(totalSupply/4)).send()
-    ])
+    debug(2, 'transferAmount: ' + transferAmount);
+    p = [];
+    for (let i = 0; i < ACCTS.length; i++) {
+        p.push(ERC20.methods.transfer(ACCTS[i], transferAmount).send());
+    }
+    await Promise.all(p)
         .then(ret => {debug(2, 'Token transfers succeeded.'); debug(3, JSON.stringify(ret))})
         .catch(err => {console.log('Error: token transfers failed.'); console.log(err)});
 
@@ -193,10 +195,9 @@ async function main()
     debug(1, '*** Writing environment variables file.');
     var contents = '';
 
-    contents += `RDN_ACCT1=${ACCT1}\n`;
-    contents += `RDN_ACCT2=${ACCT2}\n`;
-    contents += `RDN_ACCT3=${ACCT3}\n`;
-    contents += `RDN_ACCT4=${ACCT4}\n`;
+    for (let i = 0; i < ACCTS.length; i++) {
+        contents += `RDN_ACCT${i}=${ACCTS[i]}\n`;
+    }
     contents += `RDN_DISCOVERY=${discovery}\n`;
     contents += `RDN_REGISTRY=${registry}\n`;
     contents += `RDN_TOKEN=${token}\n`;
@@ -216,10 +217,9 @@ async function main()
 
     console.log("\nSummary\n=======\n");
     console.log('Deployment account: ' + account);
-    console.log("Account_1: " + ACCT1  + "\n  balance: " + await get_balance(ACCT1) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCT1).call());
-    console.log("Account_2: " + ACCT2  + "\n  balance: " + await get_balance(ACCT2) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCT2).call());
-    console.log("Account_3: " + ACCT3  + "\n  balance: " + await get_balance(ACCT3) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCT3).call());
-    console.log("Account_4: " + ACCT4  + "\n  balance: " + await get_balance(ACCT4) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCT4).call());
+    for (let i = 0; i < ACCTS.length; i++) {
+        console.log(`Account_${i}: ` + ACCTS[i]  + "\n  balance: " + await get_balance(ACCTS[i]) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCTS[i]).call());
+    }
     console.log('Discovery contract: ' + discovery);
     console.log('Registry contract:  ' + registry);
     console.log('Token contract:     ' + token);

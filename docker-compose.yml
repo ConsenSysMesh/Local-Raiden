@@ -43,7 +43,7 @@ services:
       --eth-rpc-endpoint http://172.13.0.2:8545
       --registry-contract-address ${RDN_REGISTRY}
       --discovery-contract-address ${RDN_DISCOVERY}
-      --address ${RDN_ACCT1}
+      --address ${RDN_ACCT0}
 
   raiden_2:
     image: my/raiden
@@ -68,7 +68,7 @@ services:
       --eth-rpc-endpoint http://172.13.0.2:8545
       --registry-contract-address ${RDN_REGISTRY}
       --discovery-contract-address ${RDN_DISCOVERY}
-      --address ${RDN_ACCT2}
+      --address ${RDN_ACCT1}
 
 networks:
   raiden_net:
