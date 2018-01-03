@@ -280,7 +280,7 @@ undefined
 > contracts = new Contracts('http://172.13.0.2:8545')
 RaidenContracts {... etc.
 
-> var token = new contracts.Token(token_address)
+> var token = new contracts.interface(token_address, 'abis/Token.json')
 > token.balanceOf(acct0).then(console.log)
 249900
 > token.balanceOf(acct1).then(console.log)

@@ -17,12 +17,17 @@ module.exports = ContractConstructor;
  * @param {object} web3 - A Web3 object.
  * @returns {function} A constructor for the contract interface.
  */
-function ContractConstructor(abi_file, web3) {
+function ContractConstructor(web3) {
 
-    var abi =  JSON.parse(fs.readFileSync(abi_file, 'utf8'));
+    /**
+     * This is the constructor we return
+     * @param {string} contract_address - The address of the contract.
+     * @param {string} abi_file - The file containing the ABI for the contract.
+     * @constructor
+     */
+    return function(contract_address, abi_file) {
 
-    // This is the constructor we return
-    return function(contract_address) {
+        var abi =  JSON.parse(fs.readFileSync(abi_file, 'utf8'));
 
         this.contract = new web3.eth.Contract(abi);
         this.contract.options.address = contract_address;
