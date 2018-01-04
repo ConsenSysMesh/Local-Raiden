@@ -19,7 +19,7 @@ function Tokens(host) {
 }
 
 /**
- * List all tokens.
+ * List all registered tokens.
  * @returns {Promise} Resolves to the list of tokens registered.
  */
 Tokens.prototype.list = function() {
@@ -31,7 +31,7 @@ Tokens.prototype.list = function() {
  * @param {string} token - address of the token contract.
  * @returns {Promise}
  */
-Tokens.prototype.add = function(token) {
+Tokens.prototype.register = function(token) {
     return doRequest(
         'PUT',
         this.host + '/api/1/tokens/' + token

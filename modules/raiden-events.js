@@ -20,24 +20,28 @@ function Events(host) {
 
 /**
  * List all network events.
+ * @param {number} [block=0] - The starting block number, default zero.
  * @returns {Promise} Resolves to a list of all network events.
  */
-Events.prototype.network = function() {
+Events.prototype.network = function(block) {
     return doRequest(
         'GET',
         this.host + '/api/1/events/network'
+            + (block === undefined ? '' : '?from_block=' + block)
     );
 }
 
 /**
  * List all events concerning `token`.
  * @param {string} token - The token contract address.
+ * @param {number} [block=0] - The starting block number, default zero.
  * @returns {Promise} Resolves to a list of events.
  */
-Events.prototype.token = function(token) {
+Events.prototype.token = function(token, block) {
     return doRequest(
         'GET',
         this.host + '/api/1/events/tokens/' + token
+            + (block === undefined ? '' : '?from_block=' + block)
     );
 }
 

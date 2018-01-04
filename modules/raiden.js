@@ -31,7 +31,7 @@ function Raiden(host) {
 // Read-only methods
 
 /**
- * Get node address.
+ * Get the Ethereum account address associated with the node.
  * @returns {Promise} Resolves to the (Ethereum) address of the Raiden node we are connected to.
  */
 Raiden.prototype.address = function() {

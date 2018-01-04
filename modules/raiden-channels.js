@@ -22,8 +22,8 @@ function Channels(host) {
 // Read-only methods
 
 /**
- * List all channels.
- * @returns {Promise} Resolves to the list of tokens registered.
+ * List all non-settled channels.
+ * @returns {Promise} Resolves to a list of channel info (Netting contracts).
  */
 Channels.prototype.list = function() {
     return doRequest('GET', this.host + '/api/1/channels');
@@ -52,7 +52,7 @@ Channels.prototype.balance = function(channel) {
 // State-changing methods
 
 /**
- * Open a channel.
+ * Open a channel between two nodes.
  * @param {string} partner - Address of counterpart in the channel.
  * @param {string} token - Address of token to be handled.
  * @param {number} balance - Initial balance to transfer into the channel.
@@ -98,7 +98,7 @@ Channels.prototype.settle = function(channel) {
 
 // TODO - test
 /**
- * Deposit to a channel
+ * Deposit further tokens into a channel
  * @param {string} channel - Address of the channel (the Netting contract).
  * @param {number} amount - Additional number of tokens to deposit.
  * @returns {Promise}
