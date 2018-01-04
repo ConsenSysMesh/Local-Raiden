@@ -16,11 +16,23 @@ Advantages:
 * No need to keep a synced Ropsten node up and running.
 * No need to get hold of Ropsten test Ether.
 * Faster, more predictable blocktimes.
+* No nasty NAT issues to deal with.
 * Easy tear-down and restart - it's not permanent :-)
 
 The set-up is a single Docker container representing the Ethereum blockchain, in the form of a `geth --dev` node, and N containers for Raiden clients that communicate with each other and the blockchain.
 
 Raiden is at the "Developer Preview" stage, and comes with a [disclaimer and notes](http://raiden-network.readthedocs.io/en/stable/what_is_the_dev_preview.html#disclaimer). The official Dev Preview version is 0.2.0, but that has a [bug](https://github.com/raiden-network/raiden/pull/1141) around closing channels. For this reason we are using a more recent commit. Unfortunately, that breaks the nice Web GUI... we'll have to live without it for now.
+
+Background reading on Raiden:
+
+* [Raiden Network: Vision, Challenges and Roadmap](https://medium.com/@raiden_network/raiden-network-vision-challenges-and-roadmap-593dfa34b868)
+  * A gentle introduction to the key points
+* [Raiden FAQ](https://raiden.network/faq.html)
+  * Lots of ELI5 stuff.
+* [What is the Raiden Network?](https://raiden.network/101.html)
+  * A 101 on the technology. The next level down.
+* [The official documentation](http://raiden-network.readthedocs.io/en/stable/spec.html)
+* [The Raiden GitHub](https://github.com/raiden-network/raiden)
 
 ## Setting up
 
@@ -192,7 +204,7 @@ via their RPC interfaces directly from the shell command line:
 {"our_address": "0x1563915e194d8cfba1943570603f7606a3115508"}
 ```
 
-But this quickly becomes tedious, especially for the more complex operations. I've created some JavaScript classes in the _modules/_ directory to make this easier.  We use the Node REPL:
+But this quickly becomes tedious, especially for the more complex operations. I've created some [JavaScript classes](modules/README.md) in the _modules/_ directory to make this easier. See its [README](modules/README.md) for more info. We use the Node REPL:
 
 ```
 > node
@@ -229,7 +241,7 @@ We can call methods on these Raiden node objects. Everything is asynchronous (th
 Now, let's register the token. The Registry contract will create a Channel Manager contract that will oversee all channels that exchange this token. This interacts with the blockchain, so takes a few seconds to resolve.
 
 ```
-> r0.tokens.add(token_address).then(console.log)
+> r0.tokens.register(token_address).then(console.log)
 { channel_manager_address: '0x7f799b2c9fc03f10e8cabdb06bf916402bab1a8f' }
 ```
 
@@ -276,10 +288,7 @@ This is instantaneous! The blockchain is not involved. We can check the token ba
 
 ```
 > var Contracts = require('./modules/raiden-contracts.js')
-undefined
-> contracts = new Contracts('http://172.13.0.2:8545')
-RaidenContracts {... etc.
-
+> var contracts = new Contracts('http://172.13.0.2:8545')
 > var token = new contracts.interface(token_address, 'abis/Token.json')
 > token.balanceOf(acct0).then(console.log)
 249900
