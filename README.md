@@ -182,7 +182,7 @@ This sets up two Raiden containers along with a Geth container, configured as fo
    * RPC interface: `172.13.0.3:5001`
       * Mapped to `localhost:5001` (optional: for convenience)
    * Raiden Network interface: `172.13.0.3:40001`
-* Raiden 0
+* Raiden 1
    * RPC interface: `172.13.0.4:5001`
       * Mapped to `localhost:5002` (optional: for convenience)
    * Raiden Network interface: `172.13.0.4:40001`
