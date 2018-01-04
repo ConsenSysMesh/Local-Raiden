@@ -9,17 +9,17 @@
 
 ## Introduction
 
-The goal is to set up a local Raiden network running in Docker containers, to allowing for easier exploration and experimentation than using the Ropsten testnet version.
+The goal is to set up a local Raiden network running in Docker containers, allowing for easier exploration and experimentation than using the Ropsten testnet version.
 
 Advantages:
 
 * No need to keep a synced Ropsten node up and running.
 * No need to get hold of Ropsten test Ether.
 * Faster, more predictable blocktimes.
-* No nasty NAT issues to deal with.
+* No tricky NAT issues to deal with.
 * Easy tear-down and restart - it's not permanent :-)
 
-The set-up is a single Docker container representing the Ethereum blockchain, in the form of a `geth --dev` node, and N containers for Raiden clients that communicate with each other and the blockchain.
+The set-up is a single Docker container representing the Ethereum blockchain, in the form of a `geth --dev` node, and _N_ containers for Raiden clients that communicate with each other and the blockchain.
 
 Raiden is at the "Developer Preview" stage, and comes with a [disclaimer and notes](http://raiden-network.readthedocs.io/en/stable/what_is_the_dev_preview.html#disclaimer). The official Dev Preview version is 0.2.0, but that has a [bug](https://github.com/raiden-network/raiden/pull/1141) around closing channels. For this reason we are using a more recent commit. Unfortunately, that breaks the nice Web GUI... we'll have to live without it for now.
 
@@ -192,7 +192,7 @@ You can see the console output of each container with `docker logs`. The contain
 
 ## Exploring Raiden
 
-> The below is a just "getting started". Works in progress are (1) documentation of the interfaces described below for the Raiden nodes and contracts, and (2) some articles digging deeper into what's going on "under-the-hood", including mediated transfers that involve multiple nodes. Watch this space...
+> The below is a just "getting started". I hoping to work on some articles digging deeper into what's going on "under-the-hood", including mediated transfers that involve multiple nodes. Watch this space...
 
 Now that our Raiden nodes are running, it is possible to interact with them
 via their RPC interfaces directly from the shell command line:
@@ -223,10 +223,8 @@ Now we import the Raiden interface and make an instance for each node.
 
 ```
 > var Rdn = require('./modules/raiden.js')
-> r0 = new Rdn('http://172.13.0.3:5001')
-Raiden {...
-> r1 = new Rdn('http://172.13.0.4:5001')
-Raiden {...
+> var r0 = new Rdn('http://172.13.0.3:5001')
+> var r1 = new Rdn('http://172.13.0.4:5001')
 ```
 
 We can call methods on these Raiden node objects. Everything is asynchronous (this is JavaScript), and all methods return Promises, hence the clunky `.then(console.log)` part. I've also edited the output to clean up all the Promise junk that gets printed. [If anyone knows how to (nicely) make synchronous calls to async functions from the REPL (`await` is not available), please get in touch!]
@@ -245,7 +243,7 @@ Now, let's register the token. The Registry contract will create a Channel Manag
 { channel_manager_address: '0x7f799b2c9fc03f10e8cabdb06bf916402bab1a8f' }
 ```
 
-With that done we can create a channel between Node0 and Node1 to allow tokens to be exchanged off-chain. This creates another smart contract called a Netting Channel that is responsible only for transfers of this token between these two nodes. It also makes a token transfer into the Netting Contract from Node0's balance (the deposit --- 100 tokens in this case). It takes a few seconds, again.
+With that done we can create a channel between Node0 and Node1 to allow tokens to be exchanged off-chain. This creates another smart contract called a Netting Channel that is responsible only for transfers of this token between these two nodes. It also makes a token transfer into the Netting Contract from Node0's balance (the deposit, 100 tokens in this case). Once again, it takes a few seconds.
 
 ```
 > r0.channels.open(acct1, token_address, 100, 30).then(console.log)
