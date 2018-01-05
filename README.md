@@ -96,7 +96,7 @@ rm -rf geth raiden_data geth.ipc
 Start a Geth Docker container. All the config is already set up in the _docker-compose.yml_ file, so we can just do the following.
 
 ```
-docker-compose run -u $UID --service-ports geth
+docker-compose run -u $UID geth
 ```
 
 Finally, run the deployment script. You may need to edit the path to the Solidity compiler, `SOLC`.
@@ -330,15 +330,6 @@ Eventually, after waiting for `settle_timeout` blocks, the channel state is mark
 ```
 
 ## Notes
-
-### Port numbers
-
-If you have a client already running on port 8545 then you can just modify or omit the following lines - they are not critical, they just map the 8545 port on the Geth container to localhost for convenience.
-
-```
-    ports:
-      - 8545:8545
-```
 
 ### Block times
 

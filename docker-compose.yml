@@ -10,8 +10,6 @@ services:
     networks:
       raiden_net:
         ipv4_address: '172.13.0.2'
-    ports:
-      - 8545:8545
     command:
       --datadir /shared
       --nodiscover
@@ -20,7 +18,7 @@ services:
       --rpc
       --rpcaddr 0.0.0.0
 
-  raiden_1:
+  raiden_0:
     image: my/raiden
     user: ${RDN_USER}
     depends_on:
@@ -30,8 +28,6 @@ services:
     networks:
       raiden_net:
         ipv4_address: '172.13.0.3'
-    ports:
-      - 5001:5001
     command:
       --datadir /shared/raiden_data
       --keystore-path /shared/keystore
@@ -45,7 +41,7 @@ services:
       --discovery-contract-address ${RDN_DISCOVERY}
       --address ${RDN_ACCT0}
 
-  raiden_2:
+  raiden_1:
     image: my/raiden
     user: ${RDN_USER}
     depends_on:
@@ -55,8 +51,6 @@ services:
     networks:
       raiden_net:
         ipv4_address: '172.13.0.4'
-    ports:
-      - 5002:5001
     command:
       --datadir /shared/raiden_data
       --keystore-path /shared/keystore

@@ -10,7 +10,7 @@ First remove any old configuration:
 > rm -rf geth raiden_data geth.ipc
 
 Start geth (with the test config). Ignore any warnings about environment variables.
-> docker-compose run -u $UID --service-ports geth
+> docker-compose run -u $UID geth
 
 Run this script:
 > DEBUG=1 node deploy.js
@@ -62,7 +62,7 @@ const debugLevel = process.env.DEBUG == undefined ? 0 : parseInt(process.env.DEB
 // Set up Web3 environment
 
 // Connect to node
-const web3 = new Web3('http://localhost:8545');
+const web3 = new Web3('http://172.13.0.2:8545');
 
 // Pre-created accounts for Raiden nodes.
 // We don't actually need to unlock any of these accounts during the set-up.
