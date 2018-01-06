@@ -6,8 +6,8 @@
 /* =============================================================================
 To set up a fresh network from scratch:
 
-First remove any old configuration:
-> rm -rf geth raiden_data geth.ipc
+First remove any old configuration (don't do this on your Mainnet accounts!!!)
+> rm -rf keystore geth raiden_data geth.ipc
 
 Start geth (with the test config). Ignore any warnings about environment variables.
 > docker-compose run -u $UID geth
@@ -16,24 +16,32 @@ Run this script:
 > DEBUG=1 node deploy.js
 
 The account info will be output to the console. In addition, a file ".env"
-will be created that contain environment variables for docker-compose.
+will be created that contains environment variables for docker-compose.
 Also, ABI files for the Raiden contracts will be saved.
 ============================================================================= */
 
 "use strict";
 
 // =============================================================================
-// Requires
+// Configuration options
 
-// web3 must be v1.0.0 or later
-const path = require('path');
-const util = require('util');
-const execSync = require('child_process').execSync;
-const Web3 = require('web3');
-const fs = require('fs');
+// The URL of the Geth RPC port
+const RPC_URL = 'http://172.13.0.2:8545';
 
-// =============================================================================
-// Paths and files
+// The number of accounts to create - we need one per Raiden node.
+const ACCTS_NUM = 4;
+
+// Raiden doesn't like an empty password when using a password file.
+// This must match the password in the "password.txt" file.
+const ACCTS_PASS = 'password';
+
+// Tokens we wish to create.
+// For each token specify [name, symbol, decimals, totalSupply]
+const TOKENS =
+    [
+        ['Token 0', 'TOKEN0', 0, 1000000],
+        ['Token 1', 'TOKEN1', 0, 10000000]
+    ];
 
 // Path to Raiden smart contract source files
 const RAIDEN_DIR = 'raiden/raiden/smart_contracts/';
@@ -46,10 +54,21 @@ const SOLC = '/usr/local/bin/solc';
 
 // Path to directory in which to write the ABI files
 const ABI_DIR = './abis/';
-if (!fs.existsSync(ABI_DIR)){fs.mkdirSync(ABI_DIR);}
 
 // The filename to which we will output environment variables
 const ENV_FILE = ".env";
+
+// =============================================================================
+// Set up execution environment
+
+// web3 must be v1.0.0 or later
+const path = require('path');
+const util = require('util');
+const execSync = require('child_process').execSync;
+const Web3 = require('web3');
+const fs = require('fs');
+
+const web3 = new Web3(RPC_URL);
 
 // Fetch the debug level from the environment. Default to zero.
 // 0: Silent except for summary info.
@@ -58,28 +77,7 @@ const ENV_FILE = ".env";
 // 3: Full dump of Txs and data.
 const debugLevel = process.env.DEBUG == undefined ? 0 : parseInt(process.env.DEBUG);
 
-// =============================================================================
-// Set up Web3 environment
-
-// Connect to node
-const web3 = new Web3('http://172.13.0.2:8545');
-
-// Pre-created accounts for Raiden nodes.
-// We don't actually need to unlock any of these accounts during the set-up.
-const ACCTS = [
-    "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
-    "0x1563915e194D8CfBA1943570603F7606A3115508",
-    "0x5CbDd86a2FA8Dc4bDdd8a8f69dBa48572EeC07FB",
-    "0x7564105E977516C53bE337314c7E53838967bDaC"
-];
-
-// Tokens we wish to create.
-// For each token specify [name, symbol, decimals, totalSupply]
-const tokens =
-    [
-        ['Token 0', 'TOKEN0', 0, 1000000],
-        ['Token 1', 'TOKEN1', 0, 10000000]
-    ];
+if (!fs.existsSync(ABI_DIR)){fs.mkdirSync(ABI_DIR);}
 
 // =============================================================================
 // Run the thing
@@ -102,12 +100,20 @@ async function main()
     var account;
     account = await get_account();
 
+    // Create accounts for the Raiden nodes
+    debug(1, '*** Creating accounts for Raiden nodes.');
+    var accts = [];
+    for (let i = 0; i < ACCTS_NUM; i++) {
+        accts.push(await web3.eth.personal.newAccount(ACCTS_PASS).catch(console.log));
+        debug(2, 'Created account: ' + accts[i]);
+    }
+
     // Transfer some of our Eth stash to fund the pre-configured accounts
-    debug(1, '*** Transferring Ether to pre-defined accounts.');
+    debug(1, '*** Transferring Ether to accounts.');
     const wei = web3.utils.toWei('1000', 'Ether');
     p = [];
-    for (let i = 0; i < ACCTS.length; i++) {
-        p.push(transfer_ether(account, ACCTS[i], wei));
+    for (let i = 0; i < accts.length; i++) {
+        p.push(transfer_ether(account, accts[i], wei));
     }
     await Promise.all(p)
         .then(ret => {debug(2, 'Value transfers succeeded.'); debug(3, JSON.stringify(ret))})
@@ -169,31 +175,31 @@ async function main()
     // Deploy Token contracts
 
     var token_contracts = [];
-    for (let j = 0; j < tokens.length; j++) {
+    for (let j = 0; j < TOKENS.length; j++) {
 
-        debug(1, '*** Deploying Token contract ' + tokens[j][1] + '.');
-        debug(2, 'Params: ' + tokens[j]);
+        debug(1, '*** Deploying Token contract ' + TOKENS[j][1] + '.');
+        debug(2, 'Params: ' + TOKENS[j]);
         let ERC20 =
               await deploy_code(
                   account,
                   compile(TOKEN_DIR, 'Token', []),
-                  tokens[j]
+                  TOKENS[j]
               );
         token_contracts.push(ERC20);
 
         let token = ERC20.options.address;
         debug(2, 'Token contract: ' + token);
 
-        // Split our Tokens equally between the pre-configured accounts
-        debug(1, '*** Sharing tokens between pre-defined accounts.');
+        // Split our Tokens equally between the accounts
+        debug(1, '*** Sharing tokens between accounts.');
         ERC20.options.from = account;
         let totalSupply = await ERC20.methods.totalSupply().call();
-        let transferAmount = Math.floor(totalSupply/ACCTS.length);
+        let transferAmount = Math.floor(totalSupply/accts.length);
         debug(2, 'totalSupply: ' + totalSupply);
         debug(2, 'transferAmount: ' + transferAmount);
         p = [];
-        for (let i = 0; i < ACCTS.length; i++) {
-            p.push(ERC20.methods.transfer(ACCTS[i], transferAmount).send());
+        for (let i = 0; i < accts.length; i++) {
+            p.push(ERC20.methods.transfer(accts[i], transferAmount).send());
         }
         await Promise.all(p)
             .then(ret => {debug(2, 'Token transfers succeeded.'); debug(3, JSON.stringify(ret))})
@@ -206,8 +212,8 @@ async function main()
     debug(1, '*** Writing environment variables file.');
     var contents = '';
 
-    for (let i = 0; i < ACCTS.length; i++) {
-        contents += `RDN_ACCT${i}=${ACCTS[i]}\n`;
+    for (let i = 0; i < accts.length; i++) {
+        contents += `RDN_ACCT${i}=${accts[i]}\n`;
     }
     contents += `RDN_DISCOVERY=${discovery}\n`;
     contents += `RDN_REGISTRY=${registry}\n`;
@@ -235,11 +241,11 @@ async function main()
 
     console.log("\nSummary\n=======\n");
     console.log('Deployment account: ' + account);
-    for (let i = 0; i < ACCTS.length; i++) {
-        console.log(`Account_${i}: ` + ACCTS[i]);
-        console.log('  balance: ' + await get_balance(ACCTS[i]));
+    for (let i = 0; i < accts.length; i++) {
+        console.log(`Account_${i}: ` + accts[i]);
+        console.log('  balance: ' + await get_balance(accts[i]));
         for (let i = 0; i < token_contracts.length; i++) {
-            console.log('  ' + await token_contracts[i].methods.symbol().call() + ': ' + await token_contracts[i].methods.balanceOf(ACCTS[i]).call());
+            console.log('  ' + await token_contracts[i].methods.symbol().call() + ': ' + await token_contracts[i].methods.balanceOf(accts[i]).call());
         }
     }
     console.log('Discovery contract: ' + discovery);

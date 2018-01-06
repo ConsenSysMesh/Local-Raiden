@@ -17,6 +17,7 @@ services:
       --dev.period 3
       --rpc
       --rpcaddr 0.0.0.0
+      --rpcapi eth,net,web3,personal
 
   raiden_0:
     image: my/raiden

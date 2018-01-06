@@ -3,6 +3,7 @@ node_modules/
 raiden_data/
 abis/
 out/
+keystore/
 geth.ipc
 .env
 test.js

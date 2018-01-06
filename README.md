@@ -95,11 +95,13 @@ Raiden essentially consists of two components.
 
 So, we need to deploy the contracts to our test network. Raiden provides a [Python script](https://github.com/raiden-network/raiden/blob/v0.2.0/tools/deploy.py) for this, but my Python-fu is weak and I ended up with all sorts of dependency issues. So I reverted to something more familiar and made the [_deploy.js_](deploy.js) Node.js script instead.
 
-Working in the _Local-Raiden_ directory, first clear out any old Geth or Raiden data (not necessary the first time):
+Working in the _Local-Raiden_ directory, first clear out any old Geth or Raiden data. **Do not do this on your Mainnet configuration! This deletes the keystore.**
 
 ```
-rm -rf geth raiden_data geth.ipc
+rm -rf keystore geth raiden_data geth.ipc
 ```
+
+Now check the configuration options near the top of the [_deploy.js_](deploy.js) file and adjust anything that needs adjusting. For example, you may need to edit the path to the Solidity compiler, `SOLC`.
 
 Start a Geth Docker container. All the config is already set up in the _docker-compose.yml_ file, so we can just do the following.
 
@@ -107,7 +109,7 @@ Start a Geth Docker container. All the config is already set up in the _docker-c
 docker-compose run -u $UID geth
 ```
 
-Finally, run the deployment script. You may need to edit the path to the Solidity compiler, `SOLC`.
+Finally, run the deployment script.
 
 ```
 DEBUG=1 node deploy.js
@@ -119,7 +121,7 @@ Finally, stop Geth (`Ctrl-C` will do it). All being well, everything is now set 
 
 ### Discussion
 
-The output should resemble the following, with perhaps different addresses for contracts.
+The output should resemble the following, different addresses for accounts and contracts.
 
 ```
 Summary
@@ -163,7 +165,7 @@ The deployment script performs the following tasks.
 
 4. The tokens in the ERC20 token contract are split equally between the four accounts.
 
-5. Values required by docker-compose are written to the _.env_ file.
+5. Values required by docker-compose are written to the _.env_ file. This _.env_ file is also a useful reference for looking up account and contract addresses later.
 
 ## Running Raiden
 
@@ -173,7 +175,7 @@ Now all we need to do to start the whole network is,
 docker-compose up -d
 ```
 
-To shut it all down, do
+To shut it all down,
 
 ```
 docker compose down
@@ -218,7 +220,7 @@ But this quickly becomes tedious, especially for the more complex operations. I'
 > node
 ```
 
-First set some useful variables to keep from having to copy/paste long strings: the Ethereum addresses of our two nodes and the token contract.
+First set some useful variables to keep from having to copy/paste long strings: the Ethereum addresses of our two nodes and the token contract. Insert the addresses from the deployment in the below: they will differ from the ones here.
 
 
 ```
@@ -348,23 +350,3 @@ The configuration here uses a fixed block time of 3 seconds. You can decrease th
 ```
 
 Although `dev.period` can be set to zero, meaning that Geth will produce blocks only on demand, I don't recommend it. Raiden channel settlement times are measured in blocks: if no blocks are produced, channels will never settle.
-
-### More than four Raiden nodes
-
-Out of the box, the deployment script allows for up to four accounts to be initialised, which means up to four Raiden nodes since each needs its own account.
-
-To create larger networks,
-
-1. Make some more accounts in _keystore_. I do this as follows,
-
-   `docker run -v /tmp:/tmp quorum geth --password /tmp/password.txt --keystore /tmp account import /tmp/key1.txt`
-
-   _password.txt_ contains the password "password" - I couldn't get Raiden to accept an empty password from a file, although it will from the command line. _keyN.txt_ contains the 64 hex character private key for the account.
-
-   The current four accounts use 1x64, 2x64, 3x64 and 4x64 respectively as the private keys. Please, please don't use them in a production/public network.
-
-   Move the resulting `UTC--` files to _Local-Raiden/keystore_.
-
-2. Add the account addresses to the `ACCTS[]` array in _deploy.js_.
-
-3. Clear down the blockchain and re-run _deploy.js_ as above.
