@@ -63,6 +63,14 @@ solc, the solidity compiler commandline interface
 Version: 0.4.19-develop.2018.1.3+commit.c4cbbb05.Linux.g++
 ```
 
+### Cloning
+
+Since we include the Raiden repository as a submodule, you will likely need to do the following after cloning (or do a recursive clone).
+
+```
+git submodule update --init
+```
+
 ### Docker images
 
 We use the [official Docker image](https://hub.docker.com/r/ethereum/client-go/) for Geth, which you can get with,
