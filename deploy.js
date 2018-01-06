@@ -114,39 +114,39 @@ async function main()
     // Deploy Discovery contract
     debug(1, '*** Deploying Discovery contract.');
     const discovery
-        = await deploy_code(
-            account,
-            compile(RAIDEN_DIR, 'EndpointRegistry', libs)
-        );
+          = (await deploy_code(
+              account,
+              compile(RAIDEN_DIR, 'EndpointRegistry', libs))
+            ).options.address;
     debug(2, 'Discovery contract: ' + discovery);
 
     // Deploy NettingChannelLibrary contract
     debug(1, '*** Deploying NettingChannelLibrary contract.');
     const nettingChannelLibrary
-        = await deploy_code(
-            account,
-            compile(RAIDEN_DIR, 'NettingChannelLibrary', libs)
-        );
+          = (await deploy_code(
+              account,
+              compile(RAIDEN_DIR, 'NettingChannelLibrary', libs))
+            ).options.address;
     libs.push('NettingChannelLibrary:' + nettingChannelLibrary);
     debug(2, 'libs: ' + libs);
 
     // Deploy ChannelManagerLibrary contract
     debug(1, '*** Deploying ChannelManagerLibrary contract.');
     const channelManagerLibrary
-        = await deploy_code(
-            account,
-            compile(RAIDEN_DIR, 'ChannelManagerLibrary', libs)
-        );
+          = (await deploy_code(
+              account,
+              compile(RAIDEN_DIR, 'ChannelManagerLibrary', libs))
+            ).options.address;
     libs.push('ChannelManagerLibrary:' + channelManagerLibrary);
     debug(2, 'libs: ' + libs);
 
     // Deploy Registry contract
     debug(1, '*** Deploying Registry contract.');
     const registry
-        = await deploy_code(
-            account,
-            compile(RAIDEN_DIR, 'Registry', libs)
-        );
+          = (await deploy_code(
+              account,
+              compile(RAIDEN_DIR, 'Registry', libs))
+            ).options.address;
     debug(2, 'Registry contract: ' + registry);
 
     // -----------------------------------------------------------------
@@ -161,21 +161,18 @@ async function main()
     // Deploy Token contract
 
     debug(1, '*** Deploying Token contract.');
-    const token
+    const ERC20
           = await deploy_code(
               account,
-              compile(TOKEN_DIR, 'Token', [])
+              compile(TOKEN_DIR, 'Token', []),
+              ['Foo Token', 'FOO', 0, 1000000]
           );
-    debug(2, 'Token contract: ' + token);
 
-    // Set everything up for running the Token contract
-    const ERC20_ABI_FILE = path.join(ABI_DIR, 'Token.json');
-    const ERC20_ABI = fs.readFileSync(ERC20_ABI_FILE,'utf8');
-    const ERC20 = new web3.eth.Contract(JSON.parse(ERC20_ABI));
+    const token = ERC20.options.address;
+    debug(2, 'Token contract: ' + token);
 
     // Split our Tokens equally between the pre-configured accounts
     debug(1, '*** Sharing tokens between pre-defined accounts.');
-    ERC20.options.address = token;
     ERC20.options.from = account;
     const totalSupply = await ERC20.methods.totalSupply().call();
     const transferAmount = Math.floor(totalSupply/ACCTS.length);
@@ -264,19 +261,23 @@ async function get_balance(account)
 /**
  * Deploys the contract in `binary` from the account `account`.
  * @param {string} account - The "from" account for deployment.
- * @param {string} binary - Hexadecimal code, no lead "0x", of contract to deploy.
- * @returns {Promise} Resolves to address of the deployed contract.
+ * @param {string} code - Object containing both binary and abi for the contract.
+ * @param {*} [args[]=[]] - Optional array of parameters to the contract constructor.
+ * @returns {Promise} Resolves to the Web3 Contract object.
  */
-async function deploy_code(account, binary)
+async function deploy_code(account, code, args)
 {
-    debug(3, binary);
+    debug(3, code);
 
-    var txReceipt = await web3.eth.sendTransaction({from:account, data:'0x' + binary, gas:3000000});
-    debug(3, JSON.stringify(txReceipt));
+    if (args === undefined) args = [];
 
-    // TODO: error handling
+    const contract = await (new web3.eth.Contract(JSON.parse(code.abi)))
+          .deploy({data: '0x' + code.bin, arguments: args})
+          .send({from: account, gas: 3000000})
+          .catch(console.log);
 
-    return txReceipt.contractAddress;
+    debug(2, 'Contract deployed to: ' + contract.options.address);
+    return contract;
 }
 
 /**
@@ -302,7 +303,7 @@ async function transfer_ether(from, to, amount)
  * @param {string} dir - The directory containin the Solidity file.
  * @param {string} name - The base name of the file (excluding .sol suffix).
  * @param {string[]} libs - Array of previously compiled library contracts.
- * @returns {string} Hexadecimal bytecode, suitable for deployment.
+ * @returns {string} Object containing bytecode, abi, etc. for the contract.
  */
 function compile(dir, name, libs)
 {
@@ -319,10 +320,12 @@ function compile(dir, name, libs)
     const stdout = execSync('cd ' + dir + '; ' + SOLC + ' --combined-json bin,abi ' + libstring + name + '.sol');
     debug(3, name + ' compilation output: ' + stdout);
 
+    const code = JSON.parse(stdout.toString());
+
     // Write out ABI for later use
     fs.writeFile(
         path.join(ABI_DIR, name + '.json'),
-        (JSON.parse(stdout.toString())).contracts[name + '.sol:' + name].abi,
+        code.contracts[name + '.sol:' + name].abi,
         function(err) {
             if(err) {
                 return console.log(err);
@@ -331,8 +334,8 @@ function compile(dir, name, libs)
         }
     );
 
-    // Return the bytecode
-    return (JSON.parse(stdout.toString())).contracts[name + '.sol:' + name].bin;
+    // Return the bytecode, abi, etc. for the relevant contract.
+    return code.contracts[name + '.sol:' + name];
 }
 
 // =============================================================================

@@ -2,10 +2,10 @@ pragma solidity ^0.4.18;
 
 contract Token {
 
-    uint256 constant supply = 1000000;
-    uint256 constant tokenDecimals = 0;
-    string constant tokenSymbol = "BEN";
-    string constant tokenName = "Ben Token";
+    uint256 tokenSupply;
+    uint256 tokenDecimals;
+    string tokenSymbol;
+    string tokenName;
     
 	mapping (address => uint256) balance;
 	mapping (address =>
@@ -20,28 +20,32 @@ contract Token {
 
     event Approval(address indexed _owner, address indexed _spender, uint256 _value);
 
-    function Token() public {
-		balance[msg.sender] = supply;
+    function Token(string _name, string _symbol, uint256 _decimals, uint256 _supply) public {
+        tokenSupply   = _supply;
+        tokenDecimals = _decimals;
+        tokenSymbol   = _symbol;
+        tokenName     = _name;
+		balance[msg.sender] = tokenSupply;
 	}
 
 	function balanceOf(address _account) view public returns (uint) {
 		return balance[_account];
 	}
 
-	function name() pure public returns (string) {
+	function name() view public returns (string) {
 		return tokenName;
 	}
 
-	function symbol() pure public returns (string) {
+	function symbol() view public returns (string) {
 		return tokenSymbol;
 	}
 
-	function decimals() pure public returns (uint) {
+	function decimals() view public returns (uint) {
 		return tokenDecimals;
 	}
 
-	function totalSupply() pure public returns (uint) {
-		return supply;
+	function totalSupply() view public returns (uint) {
+		return tokenSupply;
 	}
 
 	function transfer(address _to, uint256 _value) onlyGoodData() public returns (bool success)    
@@ -77,7 +81,7 @@ contract Token {
 
 	function approve(address _spender, uint256 _value) onlyGoodData() public returns (bool success)
     {
-        if (_value > supply) {
+        if (_value > tokenSupply) {
            revert();
         }
         // Avoid "front-running" attack

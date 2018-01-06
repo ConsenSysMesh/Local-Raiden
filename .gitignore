@@ -6,3 +6,5 @@ out/
 geth.ipc
 .env
 test.js
+docker-compose*.yml
+!docker-compose.yml
