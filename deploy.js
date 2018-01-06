@@ -73,6 +73,14 @@ const ACCTS = [
     "0x7564105E977516C53bE337314c7E53838967bDaC"
 ];
 
+// Tokens we wish to create.
+// For each token specify [name, symbol, decimals, totalSupply]
+const tokens =
+    [
+        ['Token 0', 'TOKEN0', 0, 1000000],
+        ['Token 1', 'TOKEN1', 0, 10000000]
+    ];
+
 // =============================================================================
 // Run the thing
 
@@ -113,40 +121,40 @@ async function main()
 
     // Deploy Discovery contract
     debug(1, '*** Deploying Discovery contract.');
-    const discovery
-          = (await deploy_code(
+    const discovery =
+          (await deploy_code(
               account,
               compile(RAIDEN_DIR, 'EndpointRegistry', libs))
-            ).options.address;
+          ).options.address;
     debug(2, 'Discovery contract: ' + discovery);
 
     // Deploy NettingChannelLibrary contract
     debug(1, '*** Deploying NettingChannelLibrary contract.');
-    const nettingChannelLibrary
-          = (await deploy_code(
+    const nettingChannelLibrary =
+          (await deploy_code(
               account,
               compile(RAIDEN_DIR, 'NettingChannelLibrary', libs))
-            ).options.address;
+          ).options.address;
     libs.push('NettingChannelLibrary:' + nettingChannelLibrary);
     debug(2, 'libs: ' + libs);
 
     // Deploy ChannelManagerLibrary contract
     debug(1, '*** Deploying ChannelManagerLibrary contract.');
-    const channelManagerLibrary
-          = (await deploy_code(
+    const channelManagerLibrary =
+          (await deploy_code(
               account,
               compile(RAIDEN_DIR, 'ChannelManagerLibrary', libs))
-            ).options.address;
+          ).options.address;
     libs.push('ChannelManagerLibrary:' + channelManagerLibrary);
     debug(2, 'libs: ' + libs);
 
     // Deploy Registry contract
     debug(1, '*** Deploying Registry contract.');
-    const registry
-          = (await deploy_code(
+    const registry =
+          (await deploy_code(
               account,
               compile(RAIDEN_DIR, 'Registry', libs))
-            ).options.address;
+          ).options.address;
     debug(2, 'Registry contract: ' + registry);
 
     // -----------------------------------------------------------------
@@ -158,33 +166,39 @@ async function main()
     compile(RAIDEN_DIR, 'NettingChannelContract', libs);
 
     // -----------------------------------------------------------------
-    // Deploy Token contract
+    // Deploy Token contracts
 
-    debug(1, '*** Deploying Token contract.');
-    const ERC20
-          = await deploy_code(
-              account,
-              compile(TOKEN_DIR, 'Token', []),
-              ['Foo Token', 'FOO', 0, 1000000]
-          );
+    var token_contracts = [];
+    for (let j = 0; j < tokens.length; j++) {
 
-    const token = ERC20.options.address;
-    debug(2, 'Token contract: ' + token);
+        debug(1, '*** Deploying Token contract ' + tokens[j][1] + '.');
+        debug(2, 'Params: ' + tokens[j]);
+        let ERC20 =
+              await deploy_code(
+                  account,
+                  compile(TOKEN_DIR, 'Token', []),
+                  tokens[j]
+              );
+        token_contracts.push(ERC20);
 
-    // Split our Tokens equally between the pre-configured accounts
-    debug(1, '*** Sharing tokens between pre-defined accounts.');
-    ERC20.options.from = account;
-    const totalSupply = await ERC20.methods.totalSupply().call();
-    const transferAmount = Math.floor(totalSupply/ACCTS.length);
-    debug(2, 'totalSupply: ' + totalSupply);
-    debug(2, 'transferAmount: ' + transferAmount);
-    p = [];
-    for (let i = 0; i < ACCTS.length; i++) {
-        p.push(ERC20.methods.transfer(ACCTS[i], transferAmount).send());
+        let token = ERC20.options.address;
+        debug(2, 'Token contract: ' + token);
+
+        // Split our Tokens equally between the pre-configured accounts
+        debug(1, '*** Sharing tokens between pre-defined accounts.');
+        ERC20.options.from = account;
+        let totalSupply = await ERC20.methods.totalSupply().call();
+        let transferAmount = Math.floor(totalSupply/ACCTS.length);
+        debug(2, 'totalSupply: ' + totalSupply);
+        debug(2, 'transferAmount: ' + transferAmount);
+        p = [];
+        for (let i = 0; i < ACCTS.length; i++) {
+            p.push(ERC20.methods.transfer(ACCTS[i], transferAmount).send());
+        }
+        await Promise.all(p)
+            .then(ret => {debug(2, 'Token transfers succeeded.'); debug(3, JSON.stringify(ret))})
+            .catch(err => {console.log('Error: token transfers failed.'); console.log(err)});
     }
-    await Promise.all(p)
-        .then(ret => {debug(2, 'Token transfers succeeded.'); debug(3, JSON.stringify(ret))})
-        .catch(err => {console.log('Error: token transfers failed.'); console.log(err)});
 
     // -----------------------------------------------------------------
     // Write useful quantities to environment variables file
@@ -197,7 +211,14 @@ async function main()
     }
     contents += `RDN_DISCOVERY=${discovery}\n`;
     contents += `RDN_REGISTRY=${registry}\n`;
-    contents += `RDN_TOKEN=${token}\n`;
+    for (let i = 0; i < token_contracts.length; i++) {
+        contents +=
+            'RDN_'
+            + await token_contracts[i].methods.symbol().call()
+            + '='
+            + token_contracts[i].options.address + "\n";
+    }
+    //contents += `RDN_TOKEN=${token}\n`;
     // Save the userid for later use by docker-compose. Yes - this is a hack.
     // It helps when sharing volumes between container and host on Linux.
     contents += 'RDN_USER=' + require('os').userInfo().uid + "\n";
@@ -215,11 +236,17 @@ async function main()
     console.log("\nSummary\n=======\n");
     console.log('Deployment account: ' + account);
     for (let i = 0; i < ACCTS.length; i++) {
-        console.log(`Account_${i}: ` + ACCTS[i]  + "\n  balance: " + await get_balance(ACCTS[i]) + "\n  tokens:  " + await ERC20.methods.balanceOf(ACCTS[i]).call());
+        console.log(`Account_${i}: ` + ACCTS[i]);
+        console.log('  balance: ' + await get_balance(ACCTS[i]));
+        for (let i = 0; i < token_contracts.length; i++) {
+            console.log('  ' + await token_contracts[i].methods.symbol().call() + ': ' + await token_contracts[i].methods.balanceOf(ACCTS[i]).call());
+        }
     }
     console.log('Discovery contract: ' + discovery);
     console.log('Registry contract:  ' + registry);
-    console.log('Token contract:     ' + token);
+    for (let i = 0; i < token_contracts.length; i++) {
+        console.log(await token_contracts[i].methods.symbol().call() + ': ' + token_contracts[i].options.address);
+    }
     console.log('');
 
     debug(1, '*** Finished.');
